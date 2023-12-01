@@ -128,7 +128,7 @@ def main(args):
         if cfg.WANDB_EVAL_PERIOD is None:
             cfg.WANDB_EVAL_PERIOD = cfg.TEST.EVAL_PERIOD
     else:
-        print('Logging to wandb is disabled. Set a name in cfg.WANDB_PROJECT to log to wandb.)
+        print('Logging to wandb is disabled. Set a name in cfg.WANDB_PROJECT to log to wandb.')
     
     """
     register publaynet first
