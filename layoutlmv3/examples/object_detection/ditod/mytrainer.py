@@ -41,7 +41,12 @@ from detectron2.solver import build_lr_scheduler, build_optimizer
 from detectron2.utils import comm
 from detectron2.utils.collect_env import collect_env_info
 from detectron2.utils.env import seed_all_rng
-from detectron2.utils.events import CommonMetricPrinter, JSONWriter, TensorboardXWriter
+from detectron2.utils.events import (
+    CommonMetricPrinter,
+    JSONWriter,
+    TensorboardXWriter,
+    EventWriter
+)
 from detectron2.utils.file_io import PathManager
 from detectron2.utils.logger import setup_logger
 
@@ -64,6 +69,53 @@ __all__ = [
     "DefaultPredictor",
     "MyTrainer",
 ]
+
+
+import wandb
+class WandbCommonMetricLogger(EventWriter):
+    """
+    Logs loss metrics to wandb during training.
+    """
+
+    def __init__(self, max_iter: Optional[int] = None, window_size: int = 20):
+        """
+        Args:
+            max_iter: the maximum number of iterations to train.
+                Used to compute ETA. If not given, ETA will not be printed.
+            window_size (int): the losses will be median-smoothed by this window size
+        """
+
+        self.logger = logging.getLogger(__name__)
+        self._max_iter = max_iter
+        self._window_size = window_size
+        self._last_write = (
+            None  # (step, time) of last call to write(). Used to compute ETA
+        )
+
+    def write(self):
+        storage = get_event_storage()
+        iteration = storage.iter
+        if iteration == self._max_iter:
+            # This hook only reports training progress (loss, ETA, etc) but not other data,
+            # therefore do not write anything after training succeeds, even if this method
+            # is called.
+            return
+
+        # NOTE: max_mem is parsed by grep in "dev/parse_results.sh"
+        losses = {
+            f"train/{k}": v.median(self._window_size)
+            for k, v in storage.histories().items()
+            if "loss" in k
+        }
+
+        # Get the learning rate
+        try:
+            lr = "{:.5g}".format(storage.history("lr").latest())
+        except KeyError:
+            lr = "N/A"
+        losses['train/lr'] = lr
+
+        wandb.log(losses, step=iteration)
 
 
 def create_ddp_model(model, *, fp16_compression=False, **kwargs):
@@ -253,6 +305,7 @@ def default_writers(output_dir: str, max_iter: Optional[int] = None):
     return [
         # It may not always print what you want to see, since it prints "common" metrics only.
         CommonMetricPrinter(max_iter),
+        WandbCommonMetricLogger(max_iter),
         JSONWriter(os.path.join(output_dir, "metrics.json")),
         TensorboardXWriter(output_dir),
     ]
