@@ -13,3 +13,7 @@ Here we list all the applied modifications.
 - layoutlmv3/examples/object_detection/ditod/mytrainer.py
 
   The custom event WandbCommonMetricLogger is defined and added to default_writers. Now the model logs to wandb the losses and the learning rate to wandb during training.
+
+- layoutlmv3/examples/object_detection/cascade_layoutlmv3.yaml
+
+  Configs are modified to accomodate the WANDB configurations.
