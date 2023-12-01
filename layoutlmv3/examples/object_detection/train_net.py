@@ -38,6 +38,42 @@ from ditod import MyDetectionCheckpointer, ICDAREvaluator
 from ditod import MyTrainer
 
 
+import wandb
+from detectron2.engine import hooks
+from detectron2.engine.hooks import HookBase
+
+class wandb_EvalHook(HookBase):
+    def __init__(self, eval_period, eval_after_train, wandb_cfg):
+        self._period = eval_period
+        self._eval_after_train = eval_after_train
+        self.wandb_cfg = wandb_cfg
+
+    def after_step(self):
+        next_iter = self.trainer.iter + 1
+        if self._period > 0 and next_iter % self._period == 0:
+            # do the last eval in after_train
+            if next_iter != self.trainer.max_iter:
+                # Add the metrics to wandb
+                metrics = self.trainer.storage.__dict__["_latest_scalars"]
+                metrics_filtered = {}
+                for key, item in metrics.items():
+                    if isinstance(key, str):
+                        if ("bbox/AP" in key) or ("segm/AP" in key) or ("loss" in key):
+                            metrics_filtered[f'eval/{key}'] = float(item[0])
+                wandb.log(metrics_filtered)
+
+    def after_train(self):
+        # This condition is to prevent the eval from running after a failed training
+        if self._eval_after_train and self.trainer.iter + 1 >= self.trainer.max_iter:
+            metrics = self.trainer.storage.__dict__["_latest_scalars"]
+            metrics_filtered = {}
+            for key, item in metrics.items():
+                if isinstance(key, str):
+                    if ("bbox/AP" in key) or ("segm/AP" in key) or ("loss" in key):
+                        metrics_filtered[f'eval/{key}'] = float(item[0])
+            wandb.log(metrics_filtered)
+
+
 def setup(args):
     """
     Create configs and perform basic setups.
@@ -45,6 +81,15 @@ def setup(args):
     cfg = get_cfg()
     # add_coat_config(cfg)
     add_vit_config(cfg)
+    cfg.CUSTOM_DATASET_DATA_COCO_TRAIN = None
+    cfg.CUSTOM_DATASET_DATA_COCO_TEST = None
+    cfg.CUSTOM_DATASET_IMG_DIR_TRAIN = None
+    cfg.CUSTOM_DATASET_IMG_DIR_TEST = None
+    cfg.WANDB_PROJECT = None
+    cfg.WANDB_RUN_NAME = None
+    cfg.WANDB_RUN_ID = None
+    cfg.WANDB_EVAL_PERIOD = None
+    print(cfg)
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
@@ -55,35 +100,41 @@ def setup(args):
 def main(args):
     cfg = setup(args)
 
+    # Preparations to log to Weights and Biases
+    assert cfg.WANDB_PROJECT is not None
+    assert (cfg.WANDB_RUN_NAME is not None) or (cfg.WANDB_RUN_ID is not None)
+
+    if (cfg.WANDB_RUN_NAME is not None) and (cfg.WANDB_RUN_ID is None):
+        print('Creating a new run in wandb.')
+        print('Run name:', cfg.WANDB_RUN_NAME)
+        wandb.init(project=cfg.WANDB_PROJECT, name=cfg.WANDB_RUN_NAME)
+    elif (cfg.WANDB_RUN_ID is not None):
+        print('Continuing id {cfg.WANDB_RUN_ID} in wandb.')
+        print('Run name:', cfg.WANDB_RUN_NAME)
+        if cfg.WANDB_RUN_NAME is not None:
+            wandb.init(project=cfg.WANDB_PROJECT, id=cfg.WANDB_RUN_ID, name=cfg.WANDB_RUN_NAME)
+        else:
+            wandb.init(project=cfg.WANDB_PROJECT, id=cfg.WANDB_RUN_ID)
+
+    # Correct the wandb eval period
+    if cfg.WANDB_EVAL_PERIOD is None:
+        cfg.WANDB_EVAL_PERIOD = args.TEST.EVAL_PERIOD
+    
     """
     register publaynet first
     """
     register_coco_instances(
-        "publaynet_train",
+        "custom_dataset_train",
         {},
-        cfg.PUBLAYNET_DATA_DIR_TRAIN + ".json",
-        cfg.PUBLAYNET_DATA_DIR_TRAIN
+        cfg.CUSTOM_DATASET_DATA_COCO_TRAIN,
+        cfg.CUSTOM_DATASET_IMG_DIR_TRAIN,
     )
 
     register_coco_instances(
-        "publaynet_val",
+        "custom_dataset_val",
         {},
-        cfg.PUBLAYNET_DATA_DIR_TEST + ".json",
-        cfg.PUBLAYNET_DATA_DIR_TEST
-    )
-
-    register_coco_instances(
-        "icdar2019_train",
-        {},
-        cfg.ICDAR_DATA_DIR_TRAIN + ".json",
-        cfg.ICDAR_DATA_DIR_TRAIN
-    )
-
-    register_coco_instances(
-        "icdar2019_test",
-        {},
-        cfg.ICDAR_DATA_DIR_TEST + ".json",
-        cfg.ICDAR_DATA_DIR_TEST
+        cfg.CUSTOM_DATASET_DATA_COCO_TEST,
+        cfg.CUSTOM_DATASET_IMG_DIR_TEST,
     )
 
     if args.eval_only:
@@ -96,6 +147,7 @@ def main(args):
 
     trainer = MyTrainer(cfg)
     trainer.resume_or_load(resume=args.resume)
+    trainer.register_hooks([wandb_EvalHook(cfg.WANDB_EVAL_PERIOD, True, {})])  # Add the wandb custom hook
     return trainer.train()
 
 
