@@ -8,3 +8,8 @@ Here we list all the applied modifications.
 ## LayoutLMv3
 - unilm/layoutlmv3/examples/object_detection/train_net.py
   
+  It is now possible to log to wandb. Many options were added for setting the project name, run name, run id, and a custom wandb evaluation hook.
+
+- layoutlmv3/examples/object_detection/ditod/mytrainer.py
+
+  The custom event WandbCommonMetricLogger is defined and added to default_writers. Now the model logs to wandb the losses and the learning rate to wandb during training.
