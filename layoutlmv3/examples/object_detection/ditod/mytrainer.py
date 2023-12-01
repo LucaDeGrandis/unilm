@@ -288,7 +288,7 @@ def default_setup(cfg, args):
         )
 
 
-def default_writers(output_dir: str, max_iter: Optional[int] = None):
+def default_writers(output_dir: str, max_iter: Optional[int] = None, wandb_log: bool = False):
     """
     Build a list of :class:`EventWriter` to be used.
     It now consists of a :class:`CommonMetricPrinter`,
@@ -302,13 +302,21 @@ def default_writers(output_dir: str, max_iter: Optional[int] = None):
         list[EventWriter]: a list of :class:`EventWriter` objects.
     """
     PathManager.mkdirs(output_dir)
-    return [
-        # It may not always print what you want to see, since it prints "common" metrics only.
-        CommonMetricPrinter(max_iter),
-        WandbCommonMetricLogger(max_iter),
-        JSONWriter(os.path.join(output_dir, "metrics.json")),
-        TensorboardXWriter(output_dir),
-    ]
+    if wandb_log:
+        return [
+            # It may not always print what you want to see, since it prints "common" metrics only.
+            CommonMetricPrinter(max_iter),
+            WandbCommonMetricLogger(max_iter),
+            JSONWriter(os.path.join(output_dir, "metrics.json")),
+            TensorboardXWriter(output_dir),
+        ]
+    else:
+        return [
+            # It may not always print what you want to see, since it prints "common" metrics only.
+            CommonMetricPrinter(max_iter),
+            JSONWriter(os.path.join(output_dir, "metrics.json")),
+            TensorboardXWriter(output_dir),
+        ]
 
 
 class DefaultPredictor:
@@ -536,7 +544,7 @@ class MyTrainer(TrainerBase):
         Returns:
             list[EventWriter]: a list of :class:`EventWriter` objects.
         """
-        return default_writers(self.cfg.OUTPUT_DIR, self.max_iter)
+        return default_writers(self.cfg.OUTPUT_DIR, self.max_iter, self.cfg.WANDB_PROJECT is not None)
 
     def train(self):
         """
