@@ -4,7 +4,7 @@ MODEL:
   META_ARCHITECTURE: "VLGeneralizedRCNN"
   PIXEL_MEAN: [ 127.5, 127.5, 127.5 ]
   PIXEL_STD: [ 127.5, 127.5, 127.5 ]
-  WEIGHTS: "/path/to/models/layoutlmv3/pts/layoutlmv3-base/pytorch_model.bin"
+  WEIGHTS: "/home/luca.degrandis/python_projects/layoutLMv3/base_layoutlmv3/pytorch_model.bin"
   BACKBONE:
     NAME: "build_vit_fpn_backbone"
   VIT:
@@ -16,7 +16,7 @@ MODEL:
   ROI_HEADS:
     NAME: CascadeROIHeads
     IN_FEATURES: [ "p2", "p3", "p4", "p5" ]
-    NUM_CLASSES: 5
+    NUM_CLASSES: 11
   ROI_BOX_HEAD:
     CLS_AGNOSTIC_BBOX_REG: True
     NAME: "FastRCNNConvFCHead"
@@ -41,15 +41,15 @@ MODEL:
     POST_NMS_TOPK_TRAIN: 2000
     POST_NMS_TOPK_TEST: 1000
 DATASETS:
-  TRAIN: ("publaynet_train",)
-  TEST: ("publaynet_val",)
+  TRAIN: ("custom_dataset_train",)
+  TEST: ("custom_dataset_val",)
 SOLVER:
-  GRADIENT_ACCUMULATION_STEPS: 1
+  GRADIENT_ACCUMULATION_STEPS: 4
   BASE_LR: 0.0002
-  WARMUP_ITERS: 1000
-  IMS_PER_BATCH: 32
-  MAX_ITER: 60000
-  CHECKPOINT_PERIOD: 2000
+  WARMUP_ITERS: 100
+  IMS_PER_BATCH: 8
+  MAX_ITER: 6000
+  CHECKPOINT_PERIOD: 1000
   LR_SCHEDULER_NAME: "WarmupCosineLR"
   AMP:
     ENABLED: True
@@ -63,7 +63,7 @@ SOLVER:
   WARMUP_FACTOR: 0.01
   WEIGHT_DECAY: 0.05
 TEST:
-  EVAL_PERIOD: 2000
+  EVAL_PERIOD: 1000
 INPUT:
   CROP:
     ENABLED: True
@@ -77,7 +77,13 @@ VERSION: 2
 AUG:
   DETR: True
 SEED: 42
-OUTPUT_DIR: "/path/to/models/layoutlmv3/fts/publaynet-base/"
-PUBLAYNET_DATA_DIR_TRAIN: "/path/to/data/PubLayNet/publaynet/train"
-PUBLAYNET_DATA_DIR_TEST: "/path/to/data/PubLayNet/publaynet/val"
+OUTPUT_DIR: "/content/publaynet-base/"
+CUSTOM_DATASET_IMG_DIR_TRAIN: None
+CUSTOM_DATASET_IMG_DIR_TEST: None
+CUSTOM_DATASET_DATA_COCO_TRAIN: None
+CUSTOM_DATASET_DATA_COCO_TEST: None
 CACHE_DIR: "/path/to/cache/huggingface"
+WANDB_PROJECT: None
+WANDB_RUN_NAME: None
+WANDB_RUN_ID: None
+WANDB_EVAL_PERIOD: None
